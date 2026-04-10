@@ -37,7 +37,7 @@ Stand protected and reflect attacks back to your attackers!
 2. Upload `xophz-compass-mirror-shield` to `/wp-content/plugins/`.
 3. Activate through the Plugins menu.
 4. On activation, the plugin initializes its database tables (`logs`, `traps`, `blocked`) and seeds the default honeypot traps.
-5. Access via the COMPASS dashboard → **Mirror Shield**.
+5. Access via the My Compass dashboard → **Mirror Shield**.
 
 ## REST API Handlers
 
