@@ -17,13 +17,14 @@
  * Plugin Name:       Xophz Magic Shield
  * Plugin URI:        http://www.mycompassconsulting.com/
  * Description:       Stand protected and reflect attacks back to your attackers! 
- * Version:           26.4.13.483
+ * Version:           26.4.14.1311
  * Author:            Hall of the Gods, Inc.
  * Author URI:        http://www.midnightnerd.com/
  * License:           GPL-2.0+
  * License URI:       http://www.gnu.org/licenses/gpl-2.0.txt
  * Text Domain:       xophz-compass-mirror-shield
  * Domain Path:       /languages
+ * Update URI:        https://github.com/HalloftheGods/xophz-compass-mirror-shield
  */
 
 // If this file is called directly, abort.
@@ -36,7 +37,7 @@ if ( ! defined( 'WPINC' ) ) {
  * Start at version 1.0.0 and use SemVer - https://semver.org
  * Rename this for your plugin and update it as you release new versions.
  */
-define( 'XOPHZ_COMPASS_MIRROR_SHIELD_VERSION', '26.4.13.483' );
+define( 'XOPHZ_COMPASS_MIRROR_SHIELD_VERSION', '26.4.14.1311' );
 
 /**
  * The code that runs during plugin activation.
