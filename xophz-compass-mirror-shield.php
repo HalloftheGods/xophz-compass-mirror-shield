@@ -15,7 +15,7 @@
  * @wordpress-plugin
  * Category:          Castle Walls
  * Plugin Name:       Xophz Magic Shield
- * Plugin URI:        http://www.mycompassconsulting.com/
+ * Plugin URI:        https://github.com/HalloftheGods/xophz-compass-mirror-shield
  * Description:       Stand protected and reflect attacks back to your attackers! 
  * Version:           26.4.24
  * Author:            Hall of the Gods, Inc.
