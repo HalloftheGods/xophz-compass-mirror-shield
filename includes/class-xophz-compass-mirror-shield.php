@@ -132,6 +132,11 @@ class Xophz_Compass_Mirror_Shield {
 		 */
 		require_once plugin_dir_path( dirname( __FILE__ ) ) . 'includes/class-mirror-shield-honeypot.php';
 
+		/**
+		 * Content Restriction / Access Control logic.
+		 */
+		require_once plugin_dir_path( dirname( __FILE__ ) ) . 'includes/class-xophz-compass-mirror-shield-content-restriction.php';
+
 		$this->loader = new Xophz_Compass_Mirror_Shield_Loader();
 
 	}
@@ -167,6 +172,7 @@ class Xophz_Compass_Mirror_Shield {
 		// $this->loader->add_action( 'admin_enqueue_scripts', $plugin_admin, 'enqueue_styles' );
 		// $this->loader->add_action( 'admin_enqueue_scripts', $plugin_admin, 'enqueue_scripts' );
 		$this->loader->add_action( 'admin_menu', $plugin_admin, 'addToMenu' );
+		$this->loader->add_action( 'admin_init', $plugin_admin, 'register_settings' );
 
 	}
 
@@ -191,6 +197,12 @@ class Xophz_Compass_Mirror_Shield {
 		// Initialize honeypot system
 		$honeypot = new Xophz_Compass_Mirror_Shield_Honeypot();
 		$honeypot->init();
+
+		// Initialize content restriction
+		if ( get_option( 'xophz_compass_members_only_enabled', '0' ) ) {
+			$content_restriction = new Xophz_Compass_Mirror_Shield_Content_Restriction();
+			$content_restriction->register_hooks( $this->loader );
+		}
 	}
 
 	/**
