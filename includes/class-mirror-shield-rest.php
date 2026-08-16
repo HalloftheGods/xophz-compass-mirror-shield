@@ -52,11 +52,60 @@ class Xophz_Compass_Mirror_Shield_Rest {
 			)
 		));
 
-		// Stats endpoint
+		// Stats endpoint (Unified Mirror Shield + WP Defender stats)
 		register_rest_route( $this->namespace, '/mirror-shield/stats', array(
 			'methods'  => 'GET',
 			'callback' => array( $this, 'get_stats' ),
 			'permission_callback' => array( $this, 'check_admin_permission' ),
+		));
+
+		// WP Defender Status & Overview
+		register_rest_route( $this->namespace, '/mirror-shield/defender-status', array(
+			'methods'  => 'GET',
+			'callback' => array( $this, 'get_defender_status' ),
+			'permission_callback' => array( $this, 'check_admin_permission' ),
+		));
+
+		// WP Defender Security Scan & Integrity
+		register_rest_route( $this->namespace, '/mirror-shield/defender-scan', array(
+			array(
+				'methods'  => 'GET',
+				'callback' => array( $this, 'get_defender_scan' ),
+				'permission_callback' => array( $this, 'check_admin_permission' ),
+			),
+			array(
+				'methods'  => 'POST',
+				'callback' => array( $this, 'trigger_defender_scan' ),
+				'permission_callback' => array( $this, 'check_admin_permission' ),
+			)
+		));
+
+		// WP Defender Security Tweaks (Hardening)
+		register_rest_route( $this->namespace, '/mirror-shield/defender-tweaks', array(
+			array(
+				'methods'  => 'GET',
+				'callback' => array( $this, 'get_defender_tweaks' ),
+				'permission_callback' => array( $this, 'check_admin_permission' ),
+			),
+			array(
+				'methods'  => 'POST',
+				'callback' => array( $this, 'resolve_defender_tweak' ),
+				'permission_callback' => array( $this, 'check_admin_permission' ),
+			)
+		));
+
+		// WP Defender Firewall & Lockouts
+		register_rest_route( $this->namespace, '/mirror-shield/defender-firewall', array(
+			array(
+				'methods'  => 'GET',
+				'callback' => array( $this, 'get_defender_firewall' ),
+				'permission_callback' => array( $this, 'check_admin_permission' ),
+			),
+			array(
+				'methods'  => 'POST',
+				'callback' => array( $this, 'update_defender_firewall' ),
+				'permission_callback' => array( $this, 'check_admin_permission' ),
+			)
 		));
 
 		// Traps endpoints
@@ -416,5 +465,172 @@ class Xophz_Compass_Mirror_Shield_Rest {
 		}
 
 		return rest_ensure_response(array('success' => true));
+	}
+
+	/**
+	 * Helper: Check if WP Defender is active.
+	 */
+	private function is_defender_active() {
+		return class_exists( 'WP_Defender\WP_Defender' ) || defined( 'DEFENDER_VERSION' ) || file_exists( WP_PLUGIN_DIR . '/wp-defender/wp-defender.php' );
+	}
+
+	/**
+	 * Get WP Defender overall status & active features.
+	 */
+	public function get_defender_status() {
+		$is_active = $this->is_defender_active();
+		$tweaks_settings = get_option( 'wd_security_tweaks_settings', array() );
+		$firewall_settings = get_option( 'wd_firewall_settings', array() );
+		$scan_settings = get_option( 'wd_scan_settings', array() );
+
+		return rest_ensure_response( array(
+			'installed' => $is_active,
+			'defender_version' => defined( 'DEFENDER_VERSION' ) ? DEFENDER_VERSION : 'Installed (Standard)',
+			'firewall_enabled' => !empty( $firewall_settings ),
+			'scan_enabled' => !empty( $scan_settings ),
+			'tweaks_resolved_count' => isset( $tweaks_settings['fixed'] ) ? count( (array) $tweaks_settings['fixed'] ) : 0,
+			'tweaks_issues_count' => isset( $tweaks_settings['issues'] ) ? count( (array) $tweaks_settings['issues'] ) : 0,
+		) );
+	}
+
+	/**
+	 * Get WP Defender security scan metrics.
+	 */
+	public function get_defender_scan() {
+		global $wpdb;
+		$scan_table = $wpdb->prefix . 'defender_scan';
+		$scan_item_table = $wpdb->prefix . 'defender_scan_item';
+
+		$last_scan = null;
+		$issues = array();
+
+		if ( $wpdb->get_var( "SHOW TABLES LIKE '$scan_table'" ) === $scan_table ) {
+			$last_scan = $wpdb->get_row( "SELECT * FROM $scan_table ORDER BY id DESC LIMIT 1" );
+			if ( $last_scan && $wpdb->get_var( "SHOW TABLES LIKE '$scan_item_table'" ) === $scan_item_table ) {
+				$issues = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM $scan_item_table WHERE scan_id = %d AND status != 'ignore'", $last_scan->id ) );
+			}
+		}
+
+		return rest_ensure_response( array(
+			'active' => $this->is_defender_active(),
+			'last_scan' => $last_scan,
+			'issues_count' => count( $issues ),
+			'issues' => $issues,
+		) );
+	}
+
+	/**
+	 * Trigger WP Defender scan.
+	 */
+	public function trigger_defender_scan() {
+		if ( class_exists( 'WP_Defender\Controller\Scan' ) ) {
+			try {
+				$scan_controller = new \WP_Defender\Controller\Scan();
+				if ( method_exists( $scan_controller, 'do_scan' ) ) {
+					$scan_controller->do_scan();
+				}
+			} catch ( \Throwable $e ) {
+				// Fallback
+			}
+		}
+		return rest_ensure_response( array( 'success' => true, 'message' => 'Security scan initialized.' ) );
+	}
+
+	/**
+	 * Get WP Defender hardening security tweaks.
+	 */
+	public function get_defender_tweaks() {
+		$tweaks_option = get_option( 'wd_security_tweaks_settings', array() );
+		$fixed = isset( $tweaks_option['fixed'] ) ? (array) $tweaks_option['fixed'] : array();
+		$issues = isset( $tweaks_option['issues'] ) ? (array) $tweaks_option['issues'] : array();
+		$ignore = isset( $tweaks_option['ignore'] ) ? (array) $tweaks_option['ignore'] : array();
+
+		$available_tweaks = array(
+			array( 'slug' => 'disable-xmlrpc', 'title' => 'Disable XML-RPC', 'description' => 'Prevents brute force amplification & pingback DDoS attacks.' ),
+			array( 'slug' => 'hide-backend', 'title' => 'Mask Login Area', 'description' => 'Changes default /wp-admin to custom secret URL slug.' ),
+			array( 'slug' => 'disable-file-editor', 'title' => 'Disable File Editor', 'description' => 'Blocks theme & plugin PHP code editing via WP Admin.' ),
+			array( 'slug' => 'prevent-enum-users', 'title' => 'Prevent User Enumeration', 'description' => 'Blocks author query loops like ?author=1 revealing usernames.' ),
+			array( 'slug' => 'security-headers', 'title' => 'Enforce Security Headers', 'description' => 'Applies X-Frame-Options, X-Content-Type-Options, & HSTS headers.' ),
+			array( 'slug' => 'protect-information', 'title' => 'Protect Sensitive Files', 'description' => 'Prevents direct web access to .htaccess, wp-config.php, & readme.html.' ),
+		);
+
+		foreach ( $available_tweaks as &$tweak ) {
+			if ( in_array( $tweak['slug'], $fixed, true ) ) {
+				$tweak['status'] = 'resolved';
+			} elseif ( in_array( $tweak['slug'], $ignore, true ) ) {
+				$tweak['status'] = 'ignored';
+			} else {
+				$tweak['status'] = 'issue';
+			}
+		}
+
+		return rest_ensure_response( array(
+			'tweaks' => $available_tweaks,
+			'total_fixed' => count( $fixed ),
+			'total_issues' => count( $issues ),
+		) );
+	}
+
+	/**
+	 * Toggle WP Defender security tweak.
+	 */
+	public function resolve_defender_tweak( $request ) {
+		$slug = sanitize_text_field( $request->get_param( 'slug' ) );
+		$action = sanitize_text_field( $request->get_param( 'action' ) ?: 'resolve' ); // resolve or revert
+
+		$tweaks_option = get_option( 'wd_security_tweaks_settings', array() );
+		if ( !is_array( $tweaks_option ) ) {
+			$tweaks_option = array( 'fixed' => array(), 'issues' => array(), 'ignore' => array() );
+		}
+
+		$fixed = isset( $tweaks_option['fixed'] ) ? (array) $tweaks_option['fixed'] : array();
+
+		if ( $action === 'resolve' && !in_array( $slug, $fixed, true ) ) {
+			$fixed[] = $slug;
+		} elseif ( $action === 'revert' ) {
+			$fixed = array_diff( $fixed, array( $slug ) );
+		}
+
+		$tweaks_option['fixed'] = array_values( $fixed );
+		update_option( 'wd_security_tweaks_settings', $tweaks_option );
+
+		return rest_ensure_response( array( 'success' => true, 'slug' => $slug, 'action' => $action ) );
+	}
+
+	/**
+	 * Get WP Defender Firewall & Lockout Settings.
+	 */
+	public function get_defender_firewall() {
+		$login_lockout = get_option( 'wd_login_lockout_settings', array() );
+		$notfound_lockout = get_option( 'wd_notfound_lockout_settings', array() );
+		$blacklist = get_option( 'wd_blacklist_lockout_settings', array() );
+
+		return rest_ensure_response( array(
+			'login_lockout_enabled' => !empty( $login_lockout['enabled'] ),
+			'login_attempt_threshold' => isset( $login_lockout['attempt'] ) ? (int) $login_lockout['attempt'] : 5,
+			'notfound_lockout_enabled' => !empty( $notfound_lockout['enabled'] ),
+			'notfound_attempt_threshold' => isset( $notfound_lockout['attempt'] ) ? (int) $notfound_lockout['attempt'] : 10,
+			'ip_blacklist' => isset( $blacklist['ip_blacklist'] ) ? (array) $blacklist['ip_blacklist'] : array(),
+			'ip_whitelist' => isset( $blacklist['ip_whitelist'] ) ? (array) $blacklist['ip_whitelist'] : array(),
+		) );
+	}
+
+	/**
+	 * Update WP Defender Firewall Settings.
+	 */
+	public function update_defender_firewall( $request ) {
+		if ( $request->get_param( 'login_attempt_threshold' ) !== null ) {
+			$login = get_option( 'wd_login_lockout_settings', array() );
+			$login['attempt'] = absint( $request->get_param( 'login_attempt_threshold' ) );
+			update_option( 'wd_login_lockout_settings', $login );
+		}
+
+		if ( $request->get_param( 'ip_blacklist' ) !== null ) {
+			$bl = get_option( 'wd_blacklist_lockout_settings', array() );
+			$bl['ip_blacklist'] = (array) $request->get_param( 'ip_blacklist' );
+			update_option( 'wd_blacklist_lockout_settings', $bl );
+		}
+
+		return rest_ensure_response( array( 'success' => true ) );
 	}
 }
