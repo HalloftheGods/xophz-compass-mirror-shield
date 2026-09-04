@@ -54,8 +54,7 @@ function activate_xophz_compass_mirror_shield() {
  * This action is documented in includes/class-xophz-compass-mirror-shield-deactivator.php
  */
 function deactivate_xophz_compass_mirror_shield() {
-	require_once plugin_dir_path( __FILE__ ) . 'includes/class-xophz-compass-mirror-shield-deactivator.php';
-	Xophz_Compass_Mirror_Shield_Deactivator::deactivate();
+	Xophz_Compass_Mirror_Shield::deactivate();
 }
 
 register_activation_hook( __FILE__, 'activate_xophz_compass_mirror_shield' );
