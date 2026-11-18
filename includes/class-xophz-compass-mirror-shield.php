@@ -136,6 +136,11 @@ class Xophz_Compass_Mirror_Shield extends Xophz_Compass_Plugin_Base {
 		require_once plugin_dir_path( dirname( __FILE__ ) ) . 'includes/class-mirror-shield-rest.php';
 
 		/**
+		 * Malware & Integrity Scanner Engine.
+		 */
+		require_once plugin_dir_path( dirname( __FILE__ ) ) . 'includes/class-mirror-shield-scanner.php';
+
+		/**
 		 * Honeypot trap handler.
 		 */
 		require_once plugin_dir_path( dirname( __FILE__ ) ) . 'includes/class-mirror-shield-honeypot.php';

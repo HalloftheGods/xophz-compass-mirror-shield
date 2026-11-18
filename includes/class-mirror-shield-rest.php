@@ -80,6 +80,31 @@ class Xophz_Compass_Mirror_Shield_Rest {
 			)
 		));
 
+		// Comprehensive Malware & File Integrity Scanner (Throttled Low-CPU Engine)
+		register_rest_route( $this->namespace, '/mirror-shield/scan/start', array(
+			'methods'             => 'POST',
+			'callback'            => array( $this, 'start_scanner' ),
+			'permission_callback' => array( $this, 'check_admin_permission' ),
+		));
+
+		register_rest_route( $this->namespace, '/mirror-shield/scan/step', array(
+			'methods'             => 'POST',
+			'callback'            => array( $this, 'step_scanner' ),
+			'permission_callback' => array( $this, 'check_admin_permission' ),
+		));
+
+		register_rest_route( $this->namespace, '/mirror-shield/scan/cancel', array(
+			'methods'             => 'POST',
+			'callback'            => array( $this, 'cancel_scanner' ),
+			'permission_callback' => array( $this, 'check_admin_permission' ),
+		));
+
+		register_rest_route( $this->namespace, '/mirror-shield/scan/results', array(
+			'methods'             => 'GET',
+			'callback'            => array( $this, 'get_scanner_results' ),
+			'permission_callback' => array( $this, 'check_admin_permission' ),
+		));
+
 		// WP Defender Security Tweaks (Hardening)
 		register_rest_route( $this->namespace, '/mirror-shield/defender-tweaks', array(
 			array(
@@ -523,17 +548,64 @@ class Xophz_Compass_Mirror_Shield_Rest {
 	 * Trigger WP Defender scan.
 	 */
 	public function trigger_defender_scan() {
-		if ( class_exists( 'WP_Defender\Controller\Scan' ) ) {
+		if ( function_exists( 'wd_di' ) && class_exists( '\WP_Defender\Model\Scan' ) ) {
 			try {
-				$scan_controller = new \WP_Defender\Controller\Scan();
-				if ( method_exists( $scan_controller, 'do_scan' ) ) {
-					$scan_controller->do_scan();
+				$model = \WP_Defender\Model\Scan::create();
+				if ( is_object( $model ) && ! is_wp_error( $model ) ) {
+					\WP_Defender\Model\Scan::set_scan_type( 'malware' );
+					$scan_controller = wd_di()->get( \WP_Defender\Controller\Scan::class );
+					if ( method_exists( $scan_controller, 'run_scan_mechanisms_from' ) ) {
+						$scan_controller->run_scan_mechanisms_from( 'scan' );
+					}
+					return rest_ensure_response( array( 'success' => true, 'message' => 'WP Defender scan initialized.', 'scan_id' => $model->id ) );
 				}
 			} catch ( \Throwable $e ) {
 				// Fallback
 			}
 		}
 		return rest_ensure_response( array( 'success' => true, 'message' => 'Security scan initialized.' ) );
+	}
+
+	/**
+	 * Start comprehensive scanner session.
+	 */
+	public function start_scanner( $request ) {
+		$include_defender = $request->get_param( 'include_defender' );
+		$mode = $request->get_param( 'mode' ) ?: 'fast';
+		if ( null === $include_defender ) {
+			$include_defender = true;
+		}
+
+		$scanner = Mirror_Shield_Scanner::instance();
+		$result = $scanner->start_scan( (bool) $include_defender, $mode );
+		return rest_ensure_response( $result );
+	}
+
+	/**
+	 * Run next batch step of scanner.
+	 */
+	public function step_scanner() {
+		$scanner = Mirror_Shield_Scanner::instance();
+		$result = $scanner->step_scan();
+		return rest_ensure_response( $result );
+	}
+
+	/**
+	 * Cancel scanner session.
+	 */
+	public function cancel_scanner() {
+		$scanner = Mirror_Shield_Scanner::instance();
+		$result = $scanner->cancel_scan();
+		return rest_ensure_response( $result );
+	}
+
+	/**
+	 * Get aggregated scanner results.
+	 */
+	public function get_scanner_results() {
+		$scanner = Mirror_Shield_Scanner::instance();
+		$result = $scanner->get_results();
+		return rest_ensure_response( $result );
 	}
 
 	/**
