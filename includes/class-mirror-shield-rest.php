@@ -149,7 +149,7 @@ class Xophz_Compass_Mirror_Shield_Rest {
 
 		register_rest_route( $this->namespace, '/mirror-shield/traps/(?P<id>\d+)', array(
 			array(
-				'methods'  => 'PUT',
+				'methods'  => array( 'PUT', 'POST', 'PATCH' ),
 				'callback' => array( $this, 'update_trap' ),
 				'permission_callback' => array( $this, 'check_admin_permission' ),
 			),
@@ -327,9 +327,12 @@ class Xophz_Compass_Mirror_Shield_Rest {
 
 		$traps = $wpdb->get_results("SELECT * FROM $traps_table ORDER BY created_at DESC");
 
-		// Parse config JSON
+		// Parse config JSON & normalize types
 		foreach ( $traps as &$trap ) {
 			$trap->config = json_decode( $trap->config );
+			$trap->id = (int) $trap->id;
+			$trap->is_active = (bool) $trap->is_active;
+			$trap->hit_count = (int) $trap->hit_count;
 		}
 
 		return rest_ensure_response($traps);
